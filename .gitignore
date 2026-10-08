@@ -1,0 +1,14 @@
+.DS_Store
+tests_internal/*
+
+# C library built with lib/CMakeLists.txt
+lib/build/
+lib/*.dll
+lib/*.dylib
+lib/*.so
+lib/*.lib
+lib/*.exp
+lib/licenses/
+
+# Local distributions (dist.tcl)
+dist/
