@@ -1,9 +1,0 @@
-.DS_Store
-json_cimgui
-json_cimplot
-demo/test_implottk.tcl
-demo/exglfw.tcl
-dxgi.tcl
-d3d11.tcl
-glfw3.tcl
-*.dll
