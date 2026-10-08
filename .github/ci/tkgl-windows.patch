@@ -1,0 +1,99 @@
+diff --git a/win/tkglWGL.c b/win/tkglWGL.c
+index 37a49d3..9c53a44 100644
+--- a/win/tkglWGL.c
++++ b/win/tkglWGL.c
+@@ -155,7 +155,8 @@ Win32WinProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+           break;
+ 
+       case WM_DISPLAYCHANGE:
+-          if (tkglPtr->pBufferFlag && hasARBPbuffer && !tkglPtr->pBufferLost) {
++          if (tkglPtr && tkglPtr->pBufferFlag && hasARBPbuffer
++                  && !tkglPtr->pBufferLost) {
+               queryPbuffer(tkglPtr->pbuf, WGL_PBUFFER_LOST_ARB,
+                       &tkglPtr->pBufferLost);
+           }
+@@ -276,8 +277,10 @@ tkgl_describePixelFormat(Tkgl *tkglPtr)
+         PIXELFORMATDESCRIPTOR pfd;
+ 
+ 	/* Fetch the attributes of the pixelformat we are using. */
+-        DescribePixelFormat(tkglPtr->deviceContext,
+-	    (int) tkglPtr->pixelFormat, sizeof (pfd), &pfd);
++        if (!DescribePixelFormat(tkglPtr->deviceContext,
++	    (int) tkglPtr->pixelFormat, sizeof (pfd), &pfd)) {
++	    return False;
++	}
+         /* Use them to fill in flags in the widget record. */
+         tkglPtr->rgbaFlag = pfd.iPixelType == PFD_TYPE_RGBA;
+         tkglPtr->doubleFlag = (pfd.dwFlags & PFD_DOUBLEBUFFER) != 0;
+@@ -303,10 +306,12 @@ tkgl_describePixelFormat(Tkgl *tkglPtr)
+ #define NUM_ATTRIBS (sizeof attribs / sizeof attribs[0])
+         int     info[NUM_ATTRIBS];
+ 
+-        getPixelFormatAttribiv(tkglPtr->deviceContext,
+-	    (int) tkglPtr->pixelFormat, 0, NUM_ATTRIBS, attribs, info);
++        if (!getPixelFormatAttribiv(tkglPtr->deviceContext,
++	    (int) tkglPtr->pixelFormat, 0, NUM_ATTRIBS, attribs, info)) {
++	    return False;
++	}
+ #undef NUM_ATTRIBS
+-        tkglPtr->rgbaFlag = info[0];
++        tkglPtr->rgbaFlag = (info[0] == WGL_TYPE_RGBA_ARB);
+         tkglPtr->doubleFlag = info[1];
+         tkglPtr->depthFlag = (info[2] != 0);
+         tkglPtr->accumFlag = (info[3] != 0);
+@@ -396,6 +401,8 @@ tkglCreateChildWindow(
+ 
+     if (!tkglPtr->pBufferFlag) {
+ 	//parentWin = Tk_GetHWND(parent);
++	/* Tk creates windows lazily : the parent may not exist yet. */
++	Tk_MakeWindowExist(Tk_Parent(tkglPtr->tkwin));
+ 	parentWin = Tk_GetHWND(Tk_WindowId(Tk_Parent(tkglPtr->tkwin)));
+         style = WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+     } else {
+@@ -425,6 +432,9 @@ tkglCreateChildWindow(
+         ShowWindow(tkglPtr->child, SW_HIDE); /* make sure it's hidden */
+     }
+ 
++    /* The device context is needed to query the pixel format. */
++    tkglPtr->deviceContext = GetDC(tkglPtr->child);
++
+     /* Fill out the widget record from the pixel format attribures. */
+     if (!tkgl_describePixelFormat(tkglPtr)) {
+ 	Tcl_SetResult(tkglPtr->interp,
+@@ -444,7 +454,6 @@ tkglCreateChildWindow(
+         createdPbufferDC = True;
+     } else {
+ 	/* Install the pixelFormat in the child's device context. */
+-	tkglPtr->deviceContext = GetDC(tkglPtr->child);
+ 	bool result = SetPixelFormat(tkglPtr->deviceContext,
+ 				     (int) tkglPtr->pixelFormat, NULL);
+ 	if (result == FALSE) {
+@@ -575,7 +584,11 @@ Tkgl_CreateGLContext(
+     initializeDeviceProcs();
+ 
+     /* Cache the extension string pointer in the widget record. */
+-    tkglPtr->extensions = (const char *) getExtensionsString(dc);
++    tkglPtr->extensions = getExtensionsString ?
++	(const char *) getExtensionsString(dc) : NULL;
++    if (tkglPtr->extensions == NULL) {
++	tkglPtr->extensions = "";
++    }
+ 
+     /* Check for multisampling in the extensions string */
+     if (strstr(tkglPtr->extensions, "WGL_ARB_multisample") != NULL
+@@ -592,8 +605,13 @@ Tkgl_CreateGLContext(
+ 	    TCL_STATIC);
+ 	return TCL_ERROR;
+     }
+-    choosePixelFormat(dc, attribList, NULL, 1, &pixelFormat,
+-			  &numFormats);
++    if (!choosePixelFormat(dc, attribList, NULL, 1, &pixelFormat,
++			   &numFormats) || numFormats == 0) {
++	Tcl_SetResult(tkglPtr->interp,
++	    "No suitable OpenGL pixel format was found.", TCL_STATIC);
++	DestroyWindow(dummy);
++	return TCL_ERROR;
++    }
+ 
+     /* Save the pixel format in the widget record. */
+     tkglPtr->pixelFormat = pixelFormat;

@@ -1,0 +1,162 @@
+name: build
+
+# Builds the cimgui/cimplot library and the dependencies (Tcl/Tk 9, cffi, TkGL)
+# on Windows, macOS and Linux, checks the signatures of funcs.tcl,
+# runs the demos (Linux) and packages implot.tk.
+# The packages are uploaded as artifacts of the run (a tag 'v*' builds them
+# too, nothing is published : the Releases are made by hand).
+# No build on a push to master : the changes come from pull requests,
+# already built and tested (workflow_dispatch to build master by hand).
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TCL_TAG: core-9-0-3
+  CFFI_TAG: v2.0.3
+  TKGL_REF: e47636bc56f02ddca503f98abc65e31a0f0f0a7c # TkGL 1.2.1
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+            tclsh: tclsh9.0
+          - os: macos-14
+            platform: macos-universal
+            tclsh: tclsh9.0
+          - os: windows-2022
+            platform: windows-x86_64
+            tclsh: tclsh90.exe
+    env:
+      DEPS: ${{ github.workspace }}/deps
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unix path of the dependencies (bash steps)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "DEPS_SH=$(cygpath -u "$DEPS")" >> "$GITHUB_ENV"
+          else
+            echo "DEPS_SH=$DEPS" >> "$GITHUB_ENV"
+          fi
+
+      - name: System packages (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxft-dev libgl-dev libffi-dev \
+            autoconf xvfb libgl1-mesa-dri
+
+      - name: System packages (macOS)
+        if: runner.os == 'macOS'
+        run: brew install autoconf
+
+      - name: MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache Tcl/Tk, cffi, TkGL
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ matrix.platform }}-${{ env.TCL_TAG }}-${{ env.CFFI_TAG }}-${{ env.TKGL_REF }}-${{ hashFiles('.github/ci/build_deps.*', '.github/ci/*.patch') }}
+
+      - name: Build Tcl/Tk, cffi, TkGL (Linux, macOS)
+        if: steps.cache-deps.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: bash .github/ci/build_deps.sh "$DEPS"
+
+      - name: Build Tcl/Tk, cffi, TkGL (Windows)
+        if: steps.cache-deps.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: cmd
+        run: call .github\ci\build_deps.bat "%DEPS%"
+
+      - name: Build the cimgui + cimplot library
+        shell: bash
+        run: |
+          ARGS=""
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            ARGS="-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
+          fi
+          cmake -S lib -B lib/build -DCMAKE_BUILD_TYPE=Release $ARGS
+          cmake --build lib/build --config Release --parallel 4
+          ls -l lib
+
+      - name: Signatures of funcs.tcl vs definitions.json (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          git clone --depth 1 https://github.com/tcltk/tcllib.git "$RUNNER_TEMP/tcllib"
+          TCLLIBPATH="$RUNNER_TEMP/tcllib/modules" "$DEPS_SH/bin/tclsh9.0" generator/generate.tcl -check
+
+      - name: Universal binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for f in "$DEPS_SH"/bin/tclsh9.0 "$DEPS_SH"/lib/*.dylib "$DEPS_SH"/lib/*cffi*/*.dylib \
+                   "$DEPS_SH"/lib/Tkgl*/*.dylib lib/libcimgui_osx.dylib; do
+            archs=$(lipo -archs "$f")
+            echo "$f : $archs"
+            case "$archs" in
+              *x86_64*arm64*|*arm64*x86_64*) ;;
+              *) echo "::error::$f is not universal ($archs)"; exit 1 ;;
+            esac
+          done
+
+      - name: Demos (Linux, Mesa OpenGL)
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        run: |
+          cat > run_demos.sh <<'EOF'
+          set -e
+          for d in demo/*.tcl; do
+            "$DEPS_SH/bin/tclsh9.0" .github/ci/run_demo.tcl "$d"
+          done
+          EOF
+          xvfb-run -a -s "-screen 0 1024x768x24 +extension GLX" bash run_demos.sh
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^package ifneeded implot\.tk \([^ ]*\) .*/\1/p' pkgIndex.tcl)
+          NAME=implot.tk-$VERSION-${{ matrix.platform }}
+          PKG=dist/$NAME/implot.tk$VERSION
+          mkdir -p "$PKG/lib"
+          cp -r pkgIndex.tcl implottk.tcl src demo README.md LICENSE THIRD_PARTY_NOTICES.md "$PKG"
+          for f in lib/cimgui_win32.dll lib/libcimgui_osx.dylib lib/libcimgui_linux.so; do
+            if [ -f "$f" ]; then cp "$f" "$PKG/lib"; fi
+          done
+          # Licenses of the components of the library (written by CMake).
+          cp -r lib/licenses "$PKG/lib/"
+          # TkGL built for Tcl/Tk 9 (folder name : Tkgl1.2.1). cffi is not
+          # distributed.
+          ls "$DEPS_SH/lib"
+          shopt -s nocaseglob
+          # No trailing '/' : BSD cp (macOS) would copy the folder contents.
+          for d in "$DEPS_SH"/lib/tkgl*; do
+            if [ -d "$d" ]; then cp -R "$d" "dist/$NAME/"; fi
+          done
+          # Contents of the package (licenses included).
+          find "dist/$NAME" -maxdepth 4 \( -name "*.terms" -o -name "*.txt" -o -name "*NOTICES*" -o -type d \) | sort
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: dist
