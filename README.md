@@ -1,4 +1,4 @@
-# implot.tk
+# implot.Tk
 Tcl/Tk bindings for [Dear ImGui](https://github.com/ocornut/imgui) (partial), [ImPlot](https://github.com/epezent/implot)
 and [ImPlot3D](https://github.com/brenocq/implot3d) : fast interactive 2D / 3D plots (GPU, OpenGL)
 in a Tk widget.
