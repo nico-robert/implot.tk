@@ -47,8 +47,6 @@ of its components in `lib/licenses/` :
 | macOS   | `lib/libcimgui_osx.dylib`
 | Linux   | `lib/libcimgui_linux.so`
 
-
-
 ### 2. TkGL
 
 The packages use the TkGL commit `TKGL_REF` of [build.yml](../.github/workflows/build.yml)
@@ -107,3 +105,6 @@ tclsh .github/ci/run_demo.tcl demo/lineplots.tcl
    191 functions checked, 1 difference(s).
    ```
 4. Update the versions in [CMakeLists.txt](CMakeLists.txt) and `implottk.tcl`.
+
+> [!NOTE]  
+> I couldn't have implemented these C parts without AI, since C isn't my area of expertise.
