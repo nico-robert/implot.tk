@@ -12,3 +12,7 @@ The GitHub runners don't have Tcl/Tk 9, cffi and TkGL : these scripts build them
   OpenGL drivers), applied until TkGL includes it.
 
 The versions are set at the top of `build.yml` (`TCL_TAG`, `CFFI_TAG`, `TKGL_REF`).
+
+> [!NOTE]  
+> I couldn't have implemented these C parts or put the entire GitHub Actions workflow together without AI, 
+> since C isn't my area of expertise.
