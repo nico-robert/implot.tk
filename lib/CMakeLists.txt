@@ -107,8 +107,8 @@ set_target_properties(implottk_cimgui PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Licenses of the compiled components (included in the packages, see
-# THIRD_PARTY_NOTICES.md). cimplot3d has no license file.
+# Licenses of the compiled components (included in the distribution, see
+# THIRD_PARTY_NOTICES.md).
 set(LICENSES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/licenses)
 file(MAKE_DIRECTORY ${LICENSES_DIR})
 configure_file(${IMGUI_DIR}/LICENSE.txt         ${LICENSES_DIR}/imgui.txt    COPYONLY)
@@ -116,3 +116,6 @@ configure_file(${IMPLOT_DIR}/LICENSE            ${LICENSES_DIR}/implot.txt   COP
 configure_file(${IMPLOT3D_DIR}/LICENSE          ${LICENSES_DIR}/implot3d.txt COPYONLY)
 configure_file(${cimgui_SOURCE_DIR}/LICENSE     ${LICENSES_DIR}/cimgui.txt   COPYONLY)
 configure_file(${cimplot_SOURCE_DIR}/LICENSE    ${LICENSES_DIR}/cimplot.txt  COPYONLY)
+# cimplot3d : no LICENSE at CIMPLOT3D_TAG (added later), copy of the repository.
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../generator/json_cimplot3d/LICENSE-cimplot3d.txt
+               ${LICENSES_DIR}/cimplot3d.txt COPYONLY)

@@ -15,10 +15,7 @@ Built with [lib/CMakeLists.txt](lib/CMakeLists.txt). The license texts are copie
 | [ImPlot3D](https://github.com/brenocq/implot3d) 0.4 | Breno Cunha Queiroz | MIT | lib/licenses/implot3d.txt
 | [cimgui](https://github.com/cimgui/cimgui) | Stephan Dilly (maintained by Victor Bombí) | MIT | lib/licenses/cimgui.txt
 | [cimplot](https://github.com/cimgui/cimplot) | Victor Bombí | MIT | lib/licenses/cimplot.txt
-| [cimplot3d](https://github.com/cimgui/cimplot3d) | Victor Bombí (author, no copyright notice) | none given (see below) | -
-
-**cimplot3d** : its repository has no license file (checked at commit `8d04820`). It is written by
-Victor Bombí, author of cimplot (MIT).
+| [cimplot3d](https://github.com/cimgui/cimplot3d) | Victor Bombí | MIT | lib/licenses/cimplot3d.txt
 
 Dear ImGui includes `imstb_*.h` ([stb](https://github.com/nothings/stb), MIT or public domain,
 license at the end of each file) and `imgui_impl_opengl3_loader.h` (from gl3w, public domain).
