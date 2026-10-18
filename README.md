@@ -1,5 +1,5 @@
 # implot.Tk
-Tcl/Tk bindings for [Dear ImGui](https://github.com/ocornut/imgui) (partial), [ImPlot](https://github.com/epezent/implot)
+Tcl/Tk bindings for [ImPlot](https://github.com/epezent/implot)
 and [ImPlot3D](https://github.com/brenocq/implot3d) : fast interactive 2D / 3D plots (GPU, OpenGL)
 in a Tk widget.
 
@@ -7,8 +7,7 @@ in a Tk widget.
 - [Tcl/Tk](https://www.tcl-lang.org) >= 9.0
 - [Tcl cffi](https://cffi.magicsplat.com) >= 2.0
 - [TkGL](https://github.com/3-manifolds/TkGL) : OpenGL widget for Tk
-- A C library with [Dear ImGui](https://github.com/ocornut/imgui), [ImPlot](https://github.com/epezent/implot)
-  and [ImPlot3D](https://github.com/brenocq/implot3d), through [cimgui](https://github.com/cimgui/cimgui),
+- A C library with through [cimgui](https://github.com/cimgui/cimgui),
   [cimplot](https://github.com/cimgui/cimplot) and [cimplot3d](https://github.com/cimgui/cimplot3d)
 
 ## Cross-Platform
@@ -40,16 +39,7 @@ $f AddPlotCmd {
 pack [$f Render] -fill both -expand 1
 ```
 
-- The package is **implot.tk**, its commands are in the `implottk` namespace (`implottk::surface`,
-`implottk::static`...). 
-- `$f Render ?-parent path?` creates the widget the first time and returns
-its path
-- `$f destroy` destroys the surface and its widget. 
-- See
-[demo/multiple_surfaces.tcl](demo/multiple_surfaces.tcl) for several surfaces.
-
 ## Options of the surface
-Set with `$f SetOptions option value ?option value ...?` (before or after `Render`) :
 
 | Option | Value | Default
 | ------ | ------ | ------
@@ -58,9 +48,9 @@ Set with `$f SetOptions option value ?option value ...?` (before or after `Rende
 | `-axisName`         | names of the axes `{x y}` of the plot added by the surface | `{}`
 | `-background`       | color of the window `{r g b}`, `{}` : color of the theme | `{}`
 | `-color`            | ImGui colors `{windowBackground {r g b} popupBackground {r g b} text {r g b}}` | -
-| `-colorPlot`        | ImPlot colors `{plotBackground .. frameBackground .. axisText .. legendBackground .. legendText ..}`       | -
-| `-fonts`            | `{file.ttf size}`, or a Tk font `{TkDefaultFont ?size?}` (see [Fonts](#fonts)) | ImGui font
-| `-idleFps`          | frames per second without event (see [Rendering](#rendering)) | 10
+| `-colorPlot`        | ImPlot colors `{plotBackground .. frameBackground .. axisText .. legendBackground .. legendText ..}` | -
+| `-fonts`            | `{file.ttf size}`, or a Tk font `{TkDefaultFont ?size?}` | ImGui font
+| `-idleFps`          | frames per second without event | 10
 | `-framebufferScale` | pixels per Tk unit (e.g. 2.0 on a retina display) | 1.0
 
 ## Scripts
@@ -106,92 +96,6 @@ $f AddPlotCmd {
 }
 ```
 
-- The state of the widgets (value of a checkbox, position of a drag tool...) is kept in the
-variables given to the functions (`inout` parameters).
-
-### Data :
-- `implottk::doubleToPointer $list` : C array of doubles (`uintToPointer` : unsigned int, for
-  `implot3d::PlotMesh_doublePtr`).
-- `implottk::updatePointer $pointer $list` : writes new values in an existing array (data changed
-  at each frame, no memory allocated).
-- Data added as they come (timer, socket, file...) : outside of the plot script, in arrays that
-  grow when they are full, then `$f redraw`. See [demo/adddata.tcl](demo/adddata.tcl).
-- Getters : `PlotLineG`, `PlotScatterG`, `PlotStairsG`, `PlotDigitalG`, `PlotBarsG`, `PlotShadedG` (two
-  getters) take a Tcl command called for each index, which returns `{x y}`. It is called several times
-  by point and by frame : for thousands of points, the arrays are faster.
-  See [demo/getters.tcl](demo/getters.tcl).
-
-  ```tcl
-  proc spiral {i} {
-      set r [expr {0.9 * $i / 1000.0}]
-      list [expr {0.5 + $r * cos($i * 0.03)}] [expr {0.5 + $r * sin($i * 0.03)}]
-  }
-  $f AddPlotCmd {implot::PlotLineG "Spiral" spiral 1000}
-  ```
-
-## Rendering
-A surface is rendered at 60 frames per second for 0.5 s after each Tk event (mouse, keyboard,
-resize...), then at `-idleFps` frames per second :
-
-```tcl
-$f SetOptions -idleFps 60   ;# animations, data changed at each frame
-$f SetOptions -idleFps 0    ;# rendered only on events
-$f redraw                   ;# new frame, for example after a change of the data
-```
-
-## Fonts
-`Dear ImGui` uses *dynamic fonts* : a font is loaded once and its glyphs are created on demand
-for any size (no glyph ranges, no atlas to build, `PushFont` takes a size) :
-
-```tcl
-$f SetOptions -fonts [list /path/to/font.ttf 16]   ;# default font of the surface (pixels)
-
-$f AddGuiCmd {
-    implottk::static {
-        set atlas [imgui::ImGuiIO getnative [imgui::GetIO_Nil] Fonts]
-        set mono  [imgui::ImFontAtlas_AddFontFromFileTTF $atlas /path/to/mono.ttf]
-    }
-    imgui::PushFont $mono 24     ;# a font and its size
-    imgui::Text "%s" {string "24 px"}
-    imgui::PopFont
-    imgui::PushFont NULL 12      ;# the current font, another size
-    imgui::Text "%s" {string "12 px"}
-    imgui::PopFont
-}
-```
-
-A Tk font can also be given : `implottk` searches its file (Windows only for now, registry of the
-fonts), without size the size of the Tk font is used. When the file is not found, the default
-`Dear ImGui` font is used :
-
-```tcl
-$f SetOptions -fonts TkDefaultFont        ;# same font as the Tk widgets
-$f SetOptions -fonts {TkFixedFont 14}     ;# 14 pixels
-```
-
-The strings are sent to `Dear ImGui` in UTF-8 (accents, symbols...), including the variadic
-arguments `{string value}`. See [demo/fonts.tcl](demo/fonts.tcl).
-
-## ImPlot3D
-The `implot3d` namespace gives the functions of [ImPlot3D](https://github.com/brenocq/implot3d)
-(each surface has its own context). A script that calls `implot3d::BeginPlot` is not wrapped in a
-plot by the surface. The style of an item is a dict of `ImPlot3DSpec` fields :
-
-```tcl
-$f AddPlotCmd {
-    implottk::static {
-        set xs [implottk::doubleToPointer {0 0.25 0.5 0.75 1}]
-        set ys [implottk::doubleToPointer {0 0.5 1 0.5 0}]
-        set zs [implottk::doubleToPointer {0 0.1 0.4 0.9 1}]
-    }
-    if {[implot3d::BeginPlot "3D" {x -1 y -1}]} {
-        implot3d::SetupAxes "x" "y" "z"
-        implot3d::PlotLine_doublePtr "line" $xs $ys $zs 5 {Marker ImPlot3DMarker_Circle}
-        implot3d::EndPlot
-    }
-}
-```
-
 ## Supported plots
 - [x] line, shaded, scatter, stairs, stems, infinite lines
 - [x] bars (vertical / horizontal / stacked, groups), error bars
@@ -202,7 +106,7 @@ $f AddPlotCmd {
 - [x] 3D (*ImPlot3D*) : line, scatter, triangle, quad, surface and mesh plots, text
 
 ## Examples
-Run them with `tclsh demo/<name>.tcl` (see [demo](demo/)).
+See [demo](demo/) folder.
 
 ## Known issues
 - macOS : On a retina display set `-framebufferScale 2.0` (not tested yet).
